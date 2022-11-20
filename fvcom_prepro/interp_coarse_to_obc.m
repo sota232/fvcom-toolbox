@@ -1,4 +1,4 @@
-function Mobj = interp_coarse_to_obc(Mobj, coarse, varlist)
+function Mobj = interp_coarse_to_obc(Mobj, coarse,obctsMJD, varlist)
 % Read an arbitrary 4D field (x, y, z, time) from the coarse struct and
 % interpolate onto the open boundaries in Mobj.
 %
@@ -80,14 +80,17 @@ else
     % component.
     fields = unique(['Depth', varlist], 'stable');
 end
-
 assert(isfield(coarse, 'Depth'), 'Require a depth vector to interpolate vertically.')
 
 % Find the first 4D array and use it to get the number of vertical levels
 % and time steps.
-for ff = 1:length(fields)
+for ff = 1:length(fields) %temp = x,y,sigma,tの四次元　他は二次元、一次元
     if isfield(coarse.(fields{ff}), 'data') && ndims(coarse.(fields{ff}).data) > 3
         [nx, ny, nz, nt] = size(coarse.(fields{ff}).data);
+%--------------------------------------------------------------%
+%inputConf.obctsMJD
+        nt = obctsMJD(2) - obctsMJD(1) +1; %by ishida 2022/11 
+%--------------------------------------------------------------%
         break
     end
 end
@@ -203,6 +206,15 @@ for v = 1:length(fields)
         for oidx = 1:length(xidx)
             pctemp3(oidx, :) = coarse.(fields{v}).data(xidx(oidx), yidx(oidx), 1:zidx, t);
         end
+        for oidx = 1:length(xidx)
+            for zid = 1:zidx
+                if pctemp3(oidx,zid) >= 100
+                    tmpnum = pctemp3(oidx,zid);
+                    pctemp3(oidx,zid) = coarse.(fields{v}).data(xidx(oidx), yidx(oidx), zid, t-1);
+                    fprintf('%4.2f is above 100, replace %4.2f.\n',tmpnum,coarse.(fields{v}).data(xidx(oidx), yidx(oidx), zid, t-1))
+                end
+            end
+        end
         % pcolor(lon(xidx(1):xidx(2), yidx(1):yidx(2)), lat(xidx(1):xidx(2), yidx(1):yidx(2)), pctemp3(:, :, 1)); shading flat; axis('equal', 'tight'); colorbar
         % hold on
         % plot(fvlon, fvlat, 'ro')
@@ -239,6 +251,7 @@ for v = 1:length(fields)
             % (i.e. we're assuming the coarse data is irregularly sampled
             % and interpolating with a triangulation).
             mask = tpctemp2 > 1.26e29;
+            %mask = tpctemp2 > 100;
 
             % We need to do some more checks for the data which has been
             % saved via Python. This is a sort of bounds check to eliminate
@@ -246,12 +259,14 @@ for v = 1:length(fields)
             switch fields{v}
                 case 'salinity'
                     mask_alt = tpctemp2 < 0;
+                    %mask_alt = tpctemp2 < 0 | tpctemp2 > 300; % by Ishida 2022/11/20 欠損値処理
                     if min(mask_alt(:)) == 1 && warned(1)
                         warned(1) = false;
                         warning('Removing negative salinities from the coarse data.')
                     end
                 case 'temperature'
-                    mask_alt = tpctemp2 < -20;
+                    mask_alt = tpctemp2 < -20 ;
+                    %mask_alt = tpctemp2 < -20 | tpctemp2 > 100; % by Ishida 2022/11/20 欠損値処理
                     if min(mask_alt(:)) == 1 && warned(2)
                         warned(2) = false;
                         warning('Removing temperature values below -20 celsius from the coarse data.')
@@ -275,7 +290,6 @@ for v = 1:length(fields)
             mask = logical(~(~mask .* ~mask_alt));
             clear mask_alt
             tpctemp2(mask) = [];
-
             % Also apply the masks to the position arrays so we can't even
             % find positions outside the domain, effectively meaning if a
             % value is outside the domain, the nearest value to the current
@@ -541,12 +555,23 @@ for s = 1:length(fvfields)
             warning('Unrecognised variable %s. Leaving name as originally given', fvfields{s})
     end
 end
+%----------------------------------
+
+%----------------------------------
+
+
+
 
 if isfield(coarse, 'time')
     if any(strcmpi(fields{v}, {'u', 'v'}))
-        Mobj.mf_times = coarse.time;
+        Mobj.mf_times =coarse.time ;
     else
-        Mobj.ts_times = coarse.time;
+        time = [];
+        for i = 1:nt
+            time(i) =obctsMJD(1)+i-1;
+        end
+        %Mobj.ts_times = coarse.time;
+        Mobj.ts_times = time';
     end
 end
 
