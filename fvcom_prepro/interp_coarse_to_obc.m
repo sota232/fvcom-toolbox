@@ -206,15 +206,18 @@ for v = 1:length(fields)
         for oidx = 1:length(xidx)
             pctemp3(oidx, :) = coarse.(fields{v}).data(xidx(oidx), yidx(oidx), 1:zidx, t);
         end
+
+        %<----------------ishid debug 2022/11
         for oidx = 1:length(xidx)
             for zid = 1:zidx
-                if pctemp3(oidx,zid) >= 100
+                if pctemp3(oidx,zid) >= 50
                     tmpnum = pctemp3(oidx,zid);
-                    pctemp3(oidx,zid) = coarse.(fields{v}).data(xidx(oidx), yidx(oidx), zid, t-1);
-                    fprintf('%4.2f is above 100, replace %4.2f.\n',tmpnum,coarse.(fields{v}).data(xidx(oidx), yidx(oidx), zid, t-1))
+                    pctemp3(oidx,:) = coarse.(fields{v}).data(xidx(oidx), yidx(oidx), 1:zidx, t-1);
+                    fprintf('%4.2f is above 50, replace %4.2f.\n',tmpnum,coarse.(fields{v}).data(xidx(oidx), yidx(oidx), zid, t-1))
                 end
             end
         end
+        %>-----------------end ishid debug 2022/11
         % pcolor(lon(xidx(1):xidx(2), yidx(1):yidx(2)), lat(xidx(1):xidx(2), yidx(1):yidx(2)), pctemp3(:, :, 1)); shading flat; axis('equal', 'tight'); colorbar
         % hold on
         % plot(fvlon, fvlat, 'ro')
@@ -472,11 +475,84 @@ for v = 1:length(fields)
             % Mask the coarse depths with the data array at this position.
             mm = isnan(itempz(pp, :));
             tpz(mm) = [];
-
             % If coarse has a single value, just repeat it across all depth
             % values.
             if length(tpz) == 1
-                fvtempz(pp, :) = repmat(itempz(pp, ~mm), [1, length(tfz)]);
+%!<---ishid debug
+                curr_pp = pp;
+                    %上方探索
+                    for i = 1:nf - curr_pp
+                        tpz = -coarse.Depth.data;
+                        mm = isnan(itempz(curr_pp+i, :));
+                        tpz(mm) = [];
+                        if length(tpz) ~= 1
+                         %   A = max(tpz);
+                         %   B = min(tpz);
+                         %   C = max(tfz);
+                         %   D = min(tfz);
+                         %   norm_tpz = (((D - C) * (tpz - A)) / (B - A)) + C;
+            
+                            % Get the temperature and salinity values for this position
+                            % and interpolate down the water column (from coarse to
+                            % FVCOM).
+                            %if any(~isnan(norm_tpz))
+                            if any(~isnan(tpz))
+                                %fvtempz(pp, :) = interp1(norm_tpz, itempz(curr_pp+i, ~mm), tfz, 'pchip', 'extrap');
+                                fvtempz(pp, :) = interp1(tpz, itempz(curr_pp+i, ~mm), tfz, 'pchip', 'extrap');
+            
+                                %figure(800);
+                                %clf
+                                %plot(itempz(pp, ~mm), tpz, 'r-o')
+                                %hold on
+                                %plot(fvtempz(pp, :), tfz, 'k-x')
+                                %legend('coarse', 'FVCOM')
+                            else
+                                warning('Should never see this... ') % because we test for NaNs when fetching the values.
+                                warning('FVCOM boundary position at %f, %f is outside the coarse domain. Skipping.', fvlon(pp), fvlat(pp))
+                                continue
+                            end
+
+                        break
+                        end
+                    end
+                    %下方探索
+                    if  length(tpz) == 1
+                        for i = curr_pp:-1:1
+                            tpz = -coarse.Depth.data;
+                            mm = isnan(itempz(i, :));
+                            tpz(mm) = [];
+                            if length(tpz) ~= 1
+                            %    A = max(tpz);
+                            %    B = min(tpz);
+                            %    C = max(tfz);
+                            %    D = min(tfz);
+                            %    norm_tpz = (((D - C) * (tpz - A)) / (B - A)) + C;
+                                
+                                % Get the temperature and salinity values for this position
+                                % and interpolate down the water column (from coarse to
+                                % FVCOM).
+                                %if any(~isnan(norm_tpz))
+                                if any(~isnan(tpz))
+                                  %  fvtempz(pp, :) = interp1(norm_tpz, itempz(i, ~mm), tfz, 'pchip', 'extrap');
+                                  fvtempz(pp, :) = interp1(tpz, itempz(i, ~mm), tfz, 'pchip', 'extrap');
+                
+                                    %figure(800);
+                                    %clf
+                                    %plot(itempz(pp, ~mm), tpz, 'r-o')
+                                    %hold on
+                                    %plot(fvtempz(pp, :), tfz, 'k-x')
+                                    %legend('coarse', 'FVCOM')
+                                else
+                                    warning('Should never see this... ') % because we test for NaNs when fetching the values.
+                                    warning('FVCOM boundary position at %f, %f is outside the coarse domain. Skipping.', fvlon(pp), fvlat(pp))
+                                    continue
+                                end
+                            break
+                            end
+                        end
+                    end
+               % fvtempz(pp, :) = repmat(itempz(pp, ~mm), [1, length(tfz)]);
+        
             else
                 % To ensure we get the full vertical expression of the
                 % vertical profiles, we need to normalise the coarse and
@@ -486,17 +562,23 @@ for v = 1:length(fields)
                 % end up truncating the vertical profile. This approach
                 % ensures we always use the full vertical profile, but
                 % we're potentially squeezing it into a smaller depth.
-                A = max(tpz);
-                B = min(tpz);
-                C = max(tfz);
-                D = min(tfz);
-                norm_tpz = (((D - C) * (tpz - A)) / (B - A)) + C;
+                %A = max(tpz);
+                %B = min(tpz);
+                %C = max(tfz);
+                %D = min(tfz);
+                %norm_tpz = (((D - C) * (tpz - A)) / (B - A)) + C;
 
                 % Get the temperature and salinity values for this position
                 % and interpolate down the water column (from coarse to
                 % FVCOM).
-                if any(~isnan(norm_tpz))
-                    fvtempz(pp, :) = interp1(norm_tpz, itempz(pp, ~mm), tfz, 'pchip', 'extrap');
+                %if any(~isnan(norm_tpz))
+                if any(~isnan(tpz))
+                  %  fprintf('max tpz is %f ',max(tpz))
+                  %  fprintf('min tpz is %f\n',min(tpz))
+                  %  fprintf('max tfz is %f ',max(tfz))
+                  %  fprintf('min tfz is %f\n',min(tfz))
+                   % fvtempz(pp, :) = interp1(norm_tpz, itempz(pp, ~mm), tfz, 'pchip', 'extrap');
+                    fvtempz(pp, :) = interp1(tpz, itempz(pp, ~mm), tfz, 'pchip', 'extrap');
 
                     %figure(800);
                     %clf
@@ -511,7 +593,7 @@ for v = 1:length(fields)
                 end
             end
         end
-
+%!>------ishid debug
         % Find and remove NaNs.
         parfor pp = 1:fz
             test = fvtempz(:, pp);
