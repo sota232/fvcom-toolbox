@@ -20,20 +20,22 @@
     
 % Base folder location - where do you want your forcing input files to end
 % up?
-inputConf.base = [basedir,'fvcominputs/'];
-inputConf.outbase = [inputConf.base,'input/'];
+inputConf.base = [basedir,'fvcominputs/input_inner_JST'];
+inputConf.outbase = [inputConf.base];
 
 %inputConf.AMM_folder = '\\store\projectsa\ISO_Modelling\POLCOMS\OPERATIONAL\OUTPUT\NETCDF\S12\AMM.hourly.';
-
-
+activate_Tide =0;
+activate_River = 0;
+activate_HYCOM=0;
+activate_Meteo=1; %現在２倍
 % Which version of FVCOM are we using (for the forcing file formats)?
 inputConf.FVCOM_version = '4.4.2';
 
 % Case name for the model inputs and outputs
 % Change this to whatever you want
 inputConf.casename ='TokyoBay';
-Mobj = read_sms_mesh('2dm','Tokyobay_testcase2f.2dm');
-%Mobj = read_sms_mesh('2dm','Tokyobay_test20f_adjustedf.2dm','project',true);
+Mobj = read_sms_mesh('2dm','TokyoBay_inner_wide_slope01.2dm');
+%Mobj = read_sms_mesh('2dm','highrs.2dm');
 write_admesh_mesh(Mobj,'filename','out');
 inputConf.grid = ['out.14'];
 %Mobj = read_sms_mesh('2dm','Tokyo_bay_fix.2dm')
@@ -54,7 +56,7 @@ inputConf.spongeRadius = -1; % in metres, or -1 for variable
 inputConf.spongeCoeff = 0.001;
 
 % z0 value in metres
-inputConf.bedRoughness = 0.015; % or 0.015, 0.025 or 0.03 - Davies and Furnes (1980) shelf model
+inputConf.bedRoughness = 0.025; % or 0.015, 0.025 or 0.03 - Davies and Furnes (1980) shelf model
 
 % Estimated velocity (m/s) and tidal range (m) for time step estimate
 inputConf.estVel = 1.5;
@@ -68,7 +70,7 @@ inputConf.estRange = 2.0;
 inputConf.modelYear = 2020;
 %inputConf.startDate = [inputConf.modelYear,1,1,0,00,00];
 inputConf.startDate = [2020,1,1,0,00,00];
-inputConf.endDate = [2020,12,30,0,00,00];
+inputConf.endDate = [2021,1,1,0,00,00];
 
 
 % How many tidal constituents do we actually want to use at the model
@@ -82,11 +84,11 @@ inputConf.tidalComponents = {'M2','S2','N2','K2','K1','O1','P1','Q1'};
 inputConf.boundaryNames = {'obc'};
 
 % Smooth the bathymetry if desired.
-inputConf.smoothBathy = 'yes'; % 'yes' or 'no'.
-if strcmpi(inputConf.smoothBathy, 'yes')
+%inputConf.smoothBathy = 'yes'; % 'yes' or 'no'.
+%if strcmpi(inputConf.smoothBathy, 'yes')
     % Set the smoothing factor and number of iterations (see smoothmesh).
-    inputConf.smoothFactors = [0.5, 4]; % [factor, iterations]
-end
+%    inputConf.smoothFactors = [0.5, 4]; % [factor, iterations]
+%end
 
 %%%------------------------------------------------------------------------
 %%%                      END OF INPUT CONFIGURATION
@@ -135,7 +137,7 @@ clear i
 % Get the sigma depths in order to interpolate from the POLCOMS depths
 if exist(fullfile(inputConf.outbase, 'sigma.dat'),'file')
     % If the sigma.dat file exists, read it
-    Mobj = read_sigma(Mobj, fullfile(inputConf.base, 'input/sigma.dat'));
+    Mobj = read_sigma(Mobj, fullfile(inputConf.base, 'sigma.dat'));
 else
     % If we can't find the sigma.dat file, print an error message and
     % finish
@@ -157,10 +159,10 @@ write_FVCOM_bath(Mobj,fullfile(inputConf.outbase,[inputConf.casename,'_dep.dat']
 write_FVCOM_cor(Mobj,fullfile(inputConf.outbase,[inputConf.casename,'_cor.dat']));
 
 % Open boundaries
-write_FVCOM_obc(Mobj,fullfile(inputConf.outbase,[inputConf.casename,'_obc.dat']))
+write_FVCOM_obc(Mobj,fullfile(inputConf.outbase,[inputConf.casename,'_obc.dat']));
 
 % Sponge file
-write_FVCOM_sponge(Mobj,fullfile(inputConf.outbase,[inputConf.casename,'_spg.dat']))
+write_FVCOM_sponge(Mobj,fullfile(inputConf.outbase,[inputConf.casename,'_spg.dat']));
 
 % Bed roughness (constant or variable (see above))
 write_FVCOM_z0(Mobj.z0,fullfile(inputConf.outbase,[inputConf.casename,'_z0.nc']),'bottom roughness');
@@ -196,13 +198,13 @@ write_FVCOM_z0(Mobj.z0,fullfile(inputConf.outbase,[inputConf.casename,'_z0.nc'])
     % Use NOC Operational Tide Surge Model output
 %    inputConf.extractType = 'm';
 %end
-activate_Tide =1;
 
 
 if activate_Tide == 1
     inputConf.obcForcing = 'z'; 
-    inputConf.datetide = 1/24
+    inputConf.datetide = 1/24;
     inputConf.tidesMJD = inputConf.startDateMJD:inputConf.datetide:inputConf.endDateMJD;
+    %inputConf.tidesMJD(:10) %ishid
     if strcmpi(inputConf.obcForcing, 'z')
         % Need to cd to TPXO directory or it doesn't work
         % (Yes, this is inelegant but it's the easiest way for now)
@@ -276,6 +278,10 @@ if activate_Tide == 1
     %     currLat = Mobj.lat(ObcNodes(i));
     %     fprintf('Position %i of %i (%.3f %.3f)... \n', i, size(ObcNodes,2), currLon, currLat)
     % end
+    %tidedata = readmatrix('C:/Users/ishid/data/tide/output/tide_2020_MR.csv');
+    tidedata = readmatrix('C:/Users/ishid/data/tide/output/tide_2020_MR_obs.csv');
+
+    %tidedata = readmatrix('C:/Users/ishid/data/tide/output/tide_2020_abura.csv');
     surfaceElevation = nan(Mobj.nObcNodes, size(inputConf.tidesMJD, 2), length(inputConf.boundaryNames));
     for i=1:length(inputConf.boundaryNames)
         for j=1:Mobj.nObcNodes
@@ -285,8 +291,16 @@ if activate_Tide == 1
             %if ftbverbose
                 fprintf('Position %i of %i (%.3f %.3f)... \n', j, Mobj.nObcNodes, currLon, currLat);
             %end
-            [surfaceElevation(j,:,i), ~] = tmd_tide_pred(inputConf.Model, ...
-                inputConf.tidesMJD+678942.000000, currLat, currLon, 'z', tIndUse);
+        %if UTC
+           % [surfaceElevation(j,:,i), ~] = tmd_tide_pred(inputConf.Model, ...
+           %     inputConf.tidesMJD+678942.000000, currLat, currLon, 'z', tIndUse);
+        %else if JST
+        %    [surfaceElevation(j,:,i), ~] = tmd_tide_pred(inputConf.Model, ...
+        %  inputConf.tidesMJD+678942.000000-0.375, currLat, currLon, 'z', tIndUse); %0.375=UTC→JST
+                %ここを変えます！！
+        % else if USE observation data
+            surfaceElevation(j,:,i) = tidedata((2:size(inputConf.tidesMJD, 2)+1),3)-0.18;
+            %スタートが1/1/2020,すべての開境界ノードに同一のデータを入れるという前提
             if isnan(surfaceElevation(j,:))
                 % Try the global model instead.
                 [surfaceElevation(j,:,i), ~] = tmd_tide_pred(inputConf.Model, ...
@@ -294,17 +308,7 @@ if activate_Tide == 1
             end
         end
     end
-    for i=1:length(inputConf.boundaryNames)
-        for j=1:Mobj.nObcNodes
-            % Get the current location (from the node ID)
-            currLon = Mobj.lon(Mobj.obc_nodes(i,j));
-            currLat = Mobj.lat(Mobj.obc_nodes(i,j));
-            %if ftbverbose
-                fprintf('Position %i of %i (%.3f %.3f)... \n', j, Mobj.nObcNodes, currLon, currLat);
-            %end
-           % [surfaceElevation(j,:,i), ~] = [78,~];
-        end
-    end
+    
     Mobj.surfaceElevation = surfaceElevation;
     % Tidy up some more
     clear i j tIndUse obc_lat obc_lon currLon currLat surfaceElevation
@@ -322,7 +326,7 @@ if activate_Tide == 1
         %clear tIndUse obc_lat obc_lon ObcNodes currLon currLat
         write_FVCOM_elevtide(Mobj, ...
         inputConf.tidesMJD,...
-        fullfile(inputConf.outbase, [inputConf.casename, '_julian_obc.nc']),...
+        fullfile(inputConf.outbase, [inputConf.casename, 'm018_julian_obc.nc']),...
         'Model surface elevation boundary input',...
         'floattime', true,...
         'julian', true);
@@ -351,41 +355,36 @@ Mobj.latc = nodes2elems(Mobj.lat, Mobj);
 
 
 inputConf.riverForcing = 'FLUX';
-% River information
-% inputConf.river.infos = {...
-%    'Tsurumigawa',...
-%     'Sumidagawa',...
-%     'Tamagawa',...
-%     'Arakawa',...
-%     'Edogawa',...
-%     'Mamagawa',...
-%     'Ebigawa',...
-%     'Yorogawa',...
-%     'Obitsugawa',...
-%     'Koitogawa',...
-%     'Muratagawa',...
-%     'Hanamigawa'};
-%{
-  inputConf.river.infos = {...
-     'Tsurumigawa',...
-     'Sumidagawa',...
-     'Tamagawa',...
-     'Arakawa',...
-     'Edogawa',...
-     'Yorogawa',...
-     'Obitsugawa',...
-     'Koitogawa'
-     };
 
-%}
 inputConf.river.infos = {...
      'Tamagawa',...
-     'arakawa',...
-     'sumidagawa',...
-     'edogawa',...
-     'nakagawa',...
+     'Arakawa',...
+     'Sumidagawa',...
+     'Edogawa',...
      'Tsurumigawa',...
+     'Ebigawa',...
+     'Mamagawa',...
+     'Yorogawa',...
+     'Obitsugawa'...
+     'koitogawa',...
+     'Muratagawa',...
+     'Hanamigawa'};
+
+     inputConf.river.infos = {...
+     'Tamagawa','Sumidagawa','Edogawa','Tsurumigawa','WestArakawa','EastArakawa','Mamagawa','Ebigawa',...
+     'Yorogawa','Obitsugawa','koitogawa','Muratagawa','Hanamigawa'...
      };
+
+
+inputConf.river.infos={...
+'EastArakawa', 'CenterArakawa', 'WestArakawa', 'SouthArakawa',...
+       'FirstSumidagawa', 'SecondSumidagawa', 'ThirdSumidagawa', 'OneEdogawa',...
+       'TwoEdogawa', 'ThreeEdogawa', 'IchiTamagawa', 'NiTamagawa',...
+       'SanTamagawa', 'ATsurumigawa', 'BTsurumigawa', 'Mamagawa', 'Ebigawa',...
+       'Yorogawa', 'Obitsugawa', 'koitogawa', 'Muratagawa', 'Hanamigawa'...
+};
+
+%}
 % Location of river file
 %only arakawa ver.
  %inputConf.river.flux = [basedir,'data/river/scr/riverflux_arakawa.csv'];
@@ -397,98 +396,33 @@ inputConf.river.infos = {...
  inputConf.river.temp = [basedir,'data/river/scr/river_temp2_2019.csv'];
  inputConf.river.salt = [basedir,'data/river/scr/river_salt2_2019.csv'];
  inputConf.river.location = [basedir,'data/river/scr/river_location2_2019.csv'];
+
+inputConf.river.flux = [basedir,'data/river/scr/river_flux2020all.csv'];
+inputConf.river.salt = [basedir,'data/river/scr/river_salt2020.csv'];
+inputConf.river.temp = [basedir,'data/river/scr/river_temp2020.csv'];
+inputConf.river.location = [basedir,'data/river/scr/river_loc2020.csv'];
 %}
-inputConf.river.flux = [basedir,'data/river/scr/river_flux2020.csv'];
- inputConf.river.temp = [basedir,'data/river/scr/river_temp2020.csv'];
- inputConf.river.salt = [basedir,'data/river/scr/river_salt2020.csv'];
- inputConf.river.location = [basedir,'data/river/scr/river_loc2020.csv'];
-% Adjust river mouth location
-% 139??55'57.84"	139??50'55.07"	139??46'29.73"	139??46'46.94"	139??40'53.63"	139??58'41.66"
-%  35??41'56.29"	 35??38'36.31"	 35??38'49.41"	 35??31'45.11"	 35??28'25.39"	 35??40'52.25"
-% New Edogawa river mouth location
-% 139.872575 (139??52'21.27")
-% 35.63695833(35??38'13.05")
+%inputConf.river.flux = [basedir,'data/river/scr/river_flux2020DB_octfix.csv'];
+% inputConf.river.flux = [basedir,'data/river/scr/river_flux2020DB_nodev_sumifix.csv'];
+ inputConf.river.flux = [basedir,'data/river/scr/river_flux2020_final.csv'];
+ inputConf.river.temp = [basedir,'data/river/scr/river_temp2020DB_nodev_2d.csv'];
+ inputConf.river.salt = [basedir,'data/river/scr/river_salt2020DB_nodev.csv'];
+ inputConf.river.location = [basedir,'data/river/scr/river_loc2020DB_nodev.csv'];
 
-% Give some names to the boundaries. This must match the number of node
-% strings defined in SMS. Ideally, the order of the names should match the
-% order in which the boundaries were made in SMS.
-%inputConf.boundaryNames = {'pacific_ocean'};
+%{
+inputConf.river.flux = [basedir,'data/river/scr/river_flux2020DB_Aradiv.csv'];
+inputConf.river.temp = [basedir,'data/river/scr/river_temp2020_Aradiv.csv'];
+inputConf.river.salt = [basedir,'data/river/scr/river_salt2020_Aradiv.csv'];
 
-% Stations
-%inputConf.names = {...
-%    'Tokyo',...
-%    'Chiba',...
-%    'Yokohamashinko',...
-%    'Daini-Kaiho',...
-%    'Yokosuka',...
-%    'Kyurihamako',...
-%     'Tidal-Station-1',...
-%     'Tidal-Station-2',...
-%     'Tidal-Station-3',...
-%     'Tidal-Station-4',...
-%    };
-%inputConf.positions = [...
-%    139.7700000000000,35.648888888888889;...
-%    140.0455555555556,35.568055555555556;...
-%    139.6441666666666,35.454166666666667;...
-%    139.7433333333333,35.308611111111105;...
-%    139.6513888888889,35.288055555555556;...
-%    139.7208333333333,35.227777777777778;...
-%     139.6912777777778,35.062205555555556;...
-%     139.7207861111112,35.076750000000004;...
-%     139.7504166666667,35.093661111111111;...
-%     139.7735055555556,35.127727777777778;...
-%    ];
-
-% Make cross section courses
-% 'Yoko_01': Tokyo-Chiba port;
-% 'Yoko_02': Submarine high way
-% 'Yoko_03': Inner bay boundary
-% 'Yoko_04': Outer bay boundary
-%inputConf.crosssection = {...
-%   'Yoko_01',...
-%    'Yoko_02',...
-%    'Yoko_03',...
-%    'Yoko_04',...
-%    'Tate_01',...
-%    'Tate_02',...
-%    'Tate_03',...
-%    };
-%inputConf.endpoints = [...
-%    139.8977,35.6166,140.0374,35.5166;...
-%    139.8023,35.5112,139.9115,35.4378;...
-%    139.7373,35.2656,139.7849,35.3121;...
-%    139.6784,35.1397,139.7529,34.9784;...
-%    140.0433,35.6303,139.7209,35.3020;...
-%    139.7209,35.3020,139.7965,35.2395;...
-%    139.7965,35.2395,139.7095,35.0545;...
-%    ];
-%inputConf.crosssection_ds = 0.01;
-
-%[inputConf] = getCrossSectionPoints(inputConf);
-
-% Generate coordinates
-%UTMzone = regexpi(inputConf.utmZone,'\ ','split');
-%for s = 1:length(inputConf.positions)
-%    [inputConf.positions(s,3),inputConf.positions(s,4),~,~] = wgs2utm(...
-%        inputConf.positions(s,2),inputConf.positions(s,1),...
-%        str2double(char(UTMzone{1}(1))),char(UTMzone{1}(2)));
-%end
-%clear s UTMzone
-
-% The accepted distance error of cal and real, in the cartesian coordinate 
-% system, the dist unit is meter.
-%inputConf.dist = 1100.00;
-
-
-activate_River = 1;
+inputConf.river.location = [basedir,'data/river/scr/river_loc2020_Aradiv.csv'];
+%}
 develop_mode = 1 ;
 if activate_River == 0
     disp('Skip creating river discharge files.')
 else
 if strcmpi(inputConf.riverForcing, 'FLUX')
     if develop_mode == 3
-    	fprintf('Loading Model objet file...')
+    fprintf('Loading Model objet file...')
         load('varb/Mobj_04.mat');
         fprintf('Done!\n');
     else
@@ -517,52 +451,85 @@ if strcmpi(inputConf.riverForcing, 'FLUX')
         clear riverList;
     end
     % river file
+    
     fprintf('Writing river forcing file...\n');
+    %{
     write_FVCOM_river(fullfile(inputConf.outbase,...
-        [inputConf.casename,'_river.nc']),...
+        [inputConf.casename,'small_river.nc']),...
          inputConf.river.infos,...
          Mobj.river.timeMJD,...
-         Mobj.river.flux,...
+         Mobj.river.flux/3600,...
          Mobj.river.temp,...
          Mobj.river.salt,...
         'Tokyo Bay rivers',...
         'Model river boundary input');
-    %{
+  %}
     write_FVCOM_river(fullfile(inputConf.outbase,...
-        [inputConf.casename,'1.5_river.nc']),...
+        [inputConf.casename,'final_river.nc']),...
          inputConf.river.infos,...
          Mobj.river.timeMJD,...
-         Mobj.river.flux*1.5,...
+         Mobj.river.flux*1.0,...
+         Mobj.river.temp,...
+         Mobj.river.salt,...
+        'Tokyo Bay rivers',...
+        'Model river boundary input');
+      
+        write_FVCOM_river(fullfile(inputConf.outbase,...
+        [inputConf.casename,'final12_river.nc']),...
+         inputConf.river.infos,...
+         Mobj.river.timeMJD,...
+         Mobj.river.flux*1.2,...
+         Mobj.river.temp,...
+         Mobj.river.salt,...
+        'Tokyo Bay rivers',...
+        'Model river boundary input');
+ 
+    write_FVCOM_river(fullfile(inputConf.outbase,...
+        [inputConf.casename,'final14_river.nc']),...
+         inputConf.river.infos,...
+         Mobj.river.timeMJD,...
+         Mobj.river.flux*1.4,...
          Mobj.river.temp,...
          Mobj.river.salt,...
         'Tokyo Bay rivers',...
         'Model river boundary input');
         
+       
     write_FVCOM_river(fullfile(inputConf.outbase,...
-        [inputConf.casename,'0.5_river.nc']),...
+        [inputConf.casename,'final16_river.nc']),...
          inputConf.river.infos,...
          Mobj.river.timeMJD,...
-         Mobj.river.flux*0.5,...
+         Mobj.river.flux*1.6,...
          Mobj.river.temp,...
          Mobj.river.salt,...
         'Tokyo Bay rivers',...
         'Model river boundary input');
-        %}
-        %{
+
     write_FVCOM_river(fullfile(inputConf.outbase,...
-        [inputConf.casename,'_river.nc']),...
-         inputConf.river.infos,...
-         Mobj.river.timeMJD,...
-         Mobj.river.flux,...
-         Mobj.river.temp,...
-         Mobj.river.salt,...
-        'Tokyo Bay rivers',...
-        'Model river boundary input');
-        %}
+    [inputConf.casename,'final18_river.nc']),...
+        inputConf.river.infos,...
+        Mobj.river.timeMJD,...
+        Mobj.river.flux*1.8,...
+        Mobj.river.temp,...
+        Mobj.river.salt,...
+    'Tokyo Bay rivers',...
+    'Model river boundary input');
+
+    write_FVCOM_river(fullfile(inputConf.outbase,...
+    [inputConf.casename,'final20_river.nc']),...
+        inputConf.river.infos,...
+        Mobj.river.timeMJD,...
+        Mobj.river.flux*2.0,...
+        Mobj.river.temp,...
+        Mobj.river.salt,...
+    'Tokyo Bay rivers',...
+    'Model river boundary input');
+ 
     write_FVCOM_river_nml(Mobj, ...
         fullfile(inputConf.outbase,'RIVERS_NAMELIST.nml'), ...
         [inputConf.casename,'_river.nc'],...
         '''uniform''');
+      
     fprintf('Done!\n');
 end
 end
@@ -575,14 +542,14 @@ end
 %%%                    HYCOM S&T forcing and staff
 %%%------------------------------------------------------------------------
 tic
-activate_HYCOM=1;
+
 % Open boundary temperatures and salinities (string for source or number for constant).
 % The data is avaliable from 1992-10-02 00:00:00
 inputConf.obc_temp = 'HYCOM';
 inputConf.obc_salt = 'HYCOM';
-inputConf.obc_u = 'NONE';
-inputConf.obc_v = 'NONE';
-inputConf.obctsMJD = [inputConf.startDateMJD, inputConf.endDateMJD +1]; %+1toha?
+inputConf.obc_u = 'None';
+inputConf.obc_v = 'None';
+inputConf.obctsMJD = [inputConf.startDateMJD, round(inputConf.endDateMJD)+2]; %+1toha?
 %inputConf.obctsMJD = [inputConf.startDateMJD-1, inputConf.endDateMJD-1];%こうしないと一日後のデータスタートになってしまう
 
 
@@ -609,12 +576,12 @@ if activate_HYCOM==1
             fprintf('Done!\n');
         else
             if develop_mode == 1
-                % modelTime = inputConf.obctsMJD;varlist={'temperature', 'salinity'}
+                             % modelTime = inputConf.obctsMJD;varlist={'temperature', 'salinity'}
                 fprintf('Downloading daliy open boundary S&T forcing from HYCOM...\n');
                 % T
-                for i = 1:10
+                for i = 1:20
                     try
-                        hycom_t = get_HYCOM_forcing(Mobj, inputConf.obctsMJD, {'temperature'}); 
+                        hycom = get_HYCOM_forcing(Mobj, inputConf.obctsMJD, {'temperature','salinity'}); 
                         %hycom_t.startDateMJD = inputConf.startDateMJD;
                         %hycom_t.endDateMJD = inputConf.endDateMJD;
                         break;  % Break out of the i-loop on success
@@ -623,34 +590,36 @@ if activate_HYCOM==1
                         fprintf('Retrying...\n');
                     end
                 end
-                Mobj = get_HYCOM_tsobc(Mobj, hycom_t,inputConf.obctsMJD ,{'temperature'});
+                save(['../00_data/hycom_2020_test.mat'],'hycom','-v7.3','-nocompression')
+                Mobj = get_HYCOM_tsobc(Mobj, hycom,inputConf.obctsMJD ,{'temperature'});
 
                 Mobj.backup_temp = Mobj.temperature; 
                 Mobj = get_HYCOM_series(Mobj, inputConf.dateobs, 'temperature',true);
                
                 %clear hycom_*
-                save(['../00_data/hycom_t_2018_2022.mat'],'hycom_t','-v7.3','-nocompression')
+               % save(['../00_data/hycom_2017_test.mat'],'hycom','-v7.3','-nocompression')
                 %save(['../00_data/hycom_t','_',fname,num2str(inputConf.startDate(2)),'_',num2str(inputConf.startDate(3)),'to',num2str(inputConf.endDate(2)),'_',num2str(inputConf.endDate(3)),'.mat'], 'hycom_t','-v7.3','-nocompression');
               %save(['../00_data/hycom_t','_',num2str(inputConf.startDate(1)),'_',num2str(inputConf.endDate(2)),'.mat'],...
                %     'hycom_t','-v7.3','-nocompression');
               % '../00_data/hycom_t','_',num2str(inputConf.startDate(2)),'_',num2str(inputConf.startDate(3)),'to',...
               %  num2str(inputConf.endDate(2),'_',num2str(inputConf.endDate(3)),'.mat'
                 % S
-                for i = 1:10
-                    try
-                        hycom_s = get_HYCOM_forcing(Mobj, inputConf.obctsMJD, {'salinity'});
-                        hycom_s.startDateMJD = inputConf.startDateMJD;
-                        hycom_s.endDateMJD = inputConf.endDateMJD;
-                        break;  % Break out of the i-loop on success
-                    catch ME
-                        disp(ME);
-                        fprintf('Retrying...\n');
-                    end
-                end
-                save(['../00_data/hycom_2018_2022.mat'],'hycom_s','-v7.3','-nocompression')
+                %for i = 1:10
+                %    try
+                %        hycom_s = get_HYCOM_forcing(Mobj, inputConf.obctsMJD, {'salinity'});
+                %        hycom_s.startDateMJD = inputConf.startDateMJD;
+                %        hycom_s.endDateMJD = inputConf.endDateMJD;
+                %        break;  % Break out of the i-loop on success
+                %    catch ME
+                %        disp(ME);
+                %        fprintf('Retrying...\n');
+                %    end
+                %end
+                %save(['../00_data/hycom_2018_2022.mat'],'hycom_s','-v7.3','-nocompression')
                 %save(['../00_data/hycom_s','_',fname,num2str(inputConf.startDate(2)),'_',num2str(inputConf.startDate(3)),'to',...
                 %num2str(inputConf.endDate(2)),'_',num2str(inputConf.endDate(3)),'.mat'],...
                 %    'hycom_s','-v7.3','-nocompression');
+                %}
                 fprintf('Downloading daliy open boundary meanflow from HYCOM...\n');
                 if strcmpi('HYCOM', {inputConf.obc_u, inputConf.obc_v})
                     fprintf('Writing daliy open boundary meanflow file.\n')
@@ -664,8 +633,8 @@ if activate_HYCOM==1
                             fprintf('Retrying...\n');
                         end
                     end
-                    %save(['../00_data/hycom_u','_',num2str(inputConf.startDate(1)),'_',num2str(inputConf.endDate(1)),'.mat'],...
-                    %    'hycom_u','-v7.3','-nocompression');
+                    save(['../00_data/hycom_u','_',num2str(inputConf.startDate(1)),'_',num2str(inputConf.endDate(1)),'.mat'],...
+                        'hycom_u','-v7.3','-nocompression');
                     % v
                     for i = 1:10
                         try
@@ -676,35 +645,36 @@ if activate_HYCOM==1
                             fprintf('Retrying...\n');
                         end
                     end
-                    %save(['../00_data/hycom_v','_',num2str(inputConf.startDate(1)),'_',num2str(inputConf.endDate(1)),'.mat'],...
-                    %    'hycom_v','-v7.3','-nocompression');
+                    save(['../00_data/hycom_v','_',num2str(inputConf.startDate(1)),'_',num2str(inputConf.endDate(1)),'.mat'],...
+                        'hycom_v','-v7.3','-nocompression');
                 end
                 fprintf('Downloading daliy open boundary S&T forcing from HYCOM...Done!\n');
             elseif develop_mode == 2
                 fprintf('Loading daliy open boundary S&T forcing from local HYCOM database...\n')
                 %load(['../00_data/hycom_t','_',num2str(inputConf.startDate(1)),'_',num2str(inputConf.endDate(2)),'.mat']);
                 %load(['../00_data/hycom_s','_',num2str(inputConf.startDate(1)),'_',num2str(inputConf.endDate(2)),'.mat']);
-                load(['../00_data/hycom_s_2020.mat']);
-                load(['../00_data/hycom_t_2020.mat']);
+                load('../00_data/hycom2020_rev.mat')
                 fprintf('Downloading daliy open boundary S&T forcing from HYCOM...Done!\n');
                 if strcmpi('HYCOM', {inputConf.obc_u, inputConf.obc_v})
                     load(['../00_data/hycom_u','_',num2str(inputConf.startDate(1)),'_',num2str(inputConf.endDate(1)),'.mat']);
                     load(['../00_data/hycom_v','_',num2str(inputConf.startDate(1)),'_',num2str(inputConf.endDate(1)),'.mat']);
                 end
             end
-            
+            %2020_revのときだけ（保存する変数名を間違えた）
+            hycom = hycom_t;
             % Interpolate the 4D HYCOM data on the FVCOM vertical grid at the open boundaries.
-            Mobj = get_HYCOM_tsobc(Mobj, hycom_t,inputConf.obctsMJD, {'temperature'});
-            Mobj = get_HYCOM_tsobc(Mobj, hycom_s, inputConf.obctsMJD,{'salinity'});
-            %if strcmpi('HYCOM', {inputConf.obc_u, inputConf.obc_v})
+            Mobj = get_HYCOM_tsobc(Mobj, hycom,inputConf.obctsMJD, {'temperature'});
+            Mobj = get_HYCOM_tsobc(Mobj, hycom, inputConf.obctsMJD,{'salinity'});
+            if strcmpi('HYCOM', {inputConf.obc_u, inputConf.obc_v})
                 % finding nesting region shows a nand of elements,
                 % that is not we wanted, we need obc faces, instead.
                 % Nested = find_nesting_region(inputConf, Mobj);
                 % Mobj.read_obc_elems = Nested.read_obc_elems;
-            %    Mobj = find_boundary_elements(Mobj);
-            %    Mobj = get_HYCOM_tsobc(Mobj, hycom_u, {'u'});
-            %    Mobj = get_HYCOM_tsobc(Mobj, hycom_v, {'v'});
-            %end
+                Mobj = find_boundary_elements(Mobj);
+                Mobj = get_HYCOM_tsobc(Mobj, hycom_u,inputConf.obctsMJD,{'u'});
+                Mobj = get_HYCOM_tsobc(Mobj, hycom_v,inputConf.obctsMJD, {'v'});
+            end
+            %hycom.temperature.data(5,7,:,1)
             clear hycom_*
             % backup daliy data
             Mobj.backup_temp = Mobj.temperature; 
@@ -717,11 +687,11 @@ if activate_HYCOM==1
                 Mobj.backup_mftm = Mobj.mf_times;
             end
             % recover daliy data
-            %{
+            
             Mobj.temperature = Mobj.backup_temp; Mobj.salt = Mobj.backup_salt;
-            Mobj.u = Mobj.backup_mflu;           Mobj.v = Mobj.backup_mflv;
-            Mobj.ts_times = Mobj.backup_tstm;    Mobj.mf_times = Mobj.backup_mftm;
-            %}
+           % Mobj.u = Mobj.backup_mflu;           Mobj.v = Mobj.backup_mflv;
+            Mobj.ts_times = Mobj.backup_tstm;   % Mobj.mf_times = Mobj.backup_mftm;
+            
             % Interpolate the 4D HYCOM data on the hourly time series
             Mobj = get_HYCOM_series(Mobj, inputConf.dateobs,'temperature',true);
             Mobj = get_HYCOM_series(Mobj, inputConf.dateobs,'salinity',true);
@@ -748,6 +718,7 @@ if activate_HYCOM==1
             end
             save('varb/Mobj_02.mat','Mobj','-v7.3','-nocompression');
         end
+    
     elseif strcmpi('FRA-JCOPE', {inputConf.obc_temp, inputConf.obc_salt})
         % [data,header]=read_grads(file_name,var_name,varargin)
         % 
@@ -760,7 +731,7 @@ if activate_HYCOM==1
     tic
     % Write the temperature and salinity.
     %size(Mobj.temperature, 2)
-    Mobj
+    
     if strcmpi('HYCOM', {inputConf.obc_temp, inputConf.obc_salt})
         fprintf('Writing daliy open boundary S&T forcing file.\n')
         write_FVCOM_tsobc(fullfile(inputConf.outbase, inputConf.casename), ...
@@ -773,8 +744,8 @@ if activate_HYCOM==1
             'julian', true);
     end
     clear hycom_*
-    %size(Mobj.temperature, 2)
-    %686 % Mobj.salt, ...
+    
+
     % Write the meanflow.
     if strcmpi('HYCOM', {inputConf.obc_u, inputConf.obc_v})
         fprintf('Writing daliy open boundary meanflow file.\n')
@@ -789,21 +760,22 @@ if activate_HYCOM==1
 
 end
     %%
+%{
 %%%------------------------------------------------------------------------
 %%%                     Meteorology and output
 %%%------------------------------------------------------------------------
 % Get the surface heating data.
-inputConf.doForcing='GWO'
 %inputConf.obctsMJD = [inputConf.startDateMJD, inputConf.endDateMJD +1];
 inputConf.dateforcing = 1/24;
-inputConf.doForcing = 'GWO';
+inputConf.doForcing = 'NCEP';
+inputConf.forceMJD = inputConf.startDateMJD:inputConf.dateforcing:inputConf.endDateMJD;
 if strcmpi(inputConf.doForcing, 'GWO')
-    inputConf.forceMJD = inputConf.startDateMJD:inputConf.dateforcing:inputConf.endDateMJD;
+    inputConf.forceMJD = inputConf.startDateMJD:inputConf.dateforcing:inputConf.endDateMJD
 elseif strcmpi(inputConf.doForcing, 'NCEP')
-    inputConf.forceMJD = [inputConf.startDateMJD, inputConf.endDateMJD];
+    inputConf.forceMJD = [inputConf.startDateMJD, inputConf.endDateMJD+1];
 end
-activate_Meteo=1;
-develop_mode =1;
+activate_Meteo=0;
+develop_mode = 1;
 if activate_Meteo==1
     if strcmpi(inputConf.doForcing, 'NCEP')
         
@@ -826,11 +798,10 @@ if activate_Meteo==1
         %     - Momentum flux (tau)
         %     - Net solar radiation surface (nswrs = uswrf - dswrf)
         %     - Net longwave radiation surface (nlwrs = ulwrf - dlwrf)
-        develop_mode =1;
         if develop_mode == 3
             fprintf('Loading Model objet file...\n')
             load('varb/Mobj_03.mat');
-            load('varb/forcing_interp.mat');
+            load('forcing_ncep_interp.mat');
             fprintf('Done!\n');
         else
             if develop_mode == 1
@@ -843,15 +814,18 @@ if activate_Meteo==1
                 inputConf.forceMJD = [inputConf.startDateMJD, inputConf.endDateMJD+1 ];
                 forcing_ncep = get_NCEP_forcing(Mobj, inputConf.forceMJD, ...
                     'varlist', {...
-                    'uwnd', 'vwnd',...
-                    'uswrf', 'ulwrf', 'dswrf', 'dlwrf',...
-                    'prate', 'pres', 'air', 'rhum','pevpr',...
-                    'nswrs','nlwrs','nshf','Lhtfl'},...
+                     'dswrf', 'dlwrf',...
+                    'nlwrs','nswrs','lhtfl','shtfl','uswrf','ulwrf'...
+                    },...
                     'source', 'reanalysis2');
+                   % 'dswrf', 'dlwrf',...
+                    %'nlwrs','nswrs','lhtfl','shtfl','uswrf','ulwrf'...
+                    %   'uwnd', 'vwnd',...
+                    %   'prate', 'pres', 'air', 'rhum','pevpr',...
                 %forcing_ncep = get_NCEP_forcing(Mobj, inputConf.forceMJD, ...
                 %    'varlist', {'dswrf'},...
                 %    'source', 'reanalysis2');   
-                
+                %forcing_ncep.nlwrs.data(1,1)
                 forcing_ncep.domain_cols = length(forcing_ncep.lon);
                 forcing_ncep.domain_rows = length(forcing_ncep.lat);
                 if isfield(forcing_ncep, 'rhum')||isfield(forcing_ncep, 'pres')
@@ -920,22 +894,26 @@ if activate_Meteo==1
                 fprintf('Loading NCEP forcing from the local database...');
                 load('forcing_ncep.mat');
                 fprintf('Done!\n');
-            end
+            end %developmode1,elseif 2 ,end
             % Interpolate the data onto the FVCOM unstructured grid.
             interpfields = {'time', 'lon', 'lat', 'x', 'y',...
-                    'uwnd', 'vwnd',...
-                    'uswrf', 'ulwrf', 'dswrf', 'dlwrf',...
-                     'air', 'rhum','pres',...
-                    'nswrs','nlwrs'};
+          'nlwrs','nswrs','lhtfl','shtfl','dswrf', 'dlwrf'... 
+                     };
+                     % 'nlwrs','nswrs','lhtfl','shtfl','dswrf', 'dlwrf'...
+               %    'uwnd', 'vwnd',...    %    'air', 'rhum','pres',...
              %       'prate', 'pres', 'air', 'rhum','pevpr'
              %       'uswrf', 'ulwrf', 'dswrf', 'dlwrf',...
             %interpfields = {'time', 'lon', 'lat', 'x', 'y','dswrf'};
-            forcing_ncep_interp = grid2fvcom(Mobj, interpfields, forcing_ncep,...
-                'add_elems', true);
+            forcing_ncep_interp = grid2fvcom(Mobj,inputConf.doForcing,interpfields, forcing_ncep,...
+                'add_elems', false);
+            
+           % forcing_ncep_interp.prate
+            %size(forcing_ncep_interp.prate.node)
             %forcing_ncep_interp
+        end %developmode3かそれ以外かの分岐
 
-           
-
+        %write out to nc
+        
             write_FVCOM_forcing_calculated(Mobj, ...
             fullfile(inputConf.outbase,[inputConf.casename]),...
             forcing_ncep_interp, ...
@@ -946,9 +924,10 @@ if activate_Meteo==1
 
         % (Mobj, fileprefix, data, infos, fver, varargin)
 
-            % save('varb/Mobj_03.mat','Mobj','-v7.3','-nocompression');
-            % save('forcing_interp.mat','forcing_interp','-v7.3','-nocompression');
-        end
+             save('Mobj_03.mat','Mobj','-v7.3','-nocompression');
+             save('forcing_ncep_interp.mat','forcing_ncep_interp','-v7.3','-nocompression');
+    
+
         % elseif strcmpi(inputConf.doForcing, 'NCEP-CALCULATED')
         % plot(datetime(forcing_interp_calculated.time+678942,'ConvertFrom','datenum','TimeZone','Asia/Tokyo'),forcing_interp_calculated.uwnd.node(1,:));
         % plot(datetime(forcing_interp_calculated.time+678942,'ConvertFrom','datenum','TimeZone','Asia/Tokyo'),forcing_interp_calculated.vwnd.node(1,:));
@@ -970,8 +949,29 @@ if activate_Meteo==1
         % data=forcing_interp_calculated;
         % infos=[inputConf.doForcing, 'atmospheric forcing data'];
         % fver=inputConf.FVCOM_version;
-
+    %inputConf.doForcing = 'GWO';
+    %inputConf.forceMJD = inputConf.startDateMJD:inputConf.dateforcing:inputConf.endDateMJD;
+    %develop_mode = 1;
     elseif strcmpi(inputConf.doForcing, 'GWO')
+        clear forcing_gwo forcing_gwo_interp;
+    end
+end   %meteo end
+%}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+inputConf.dateforcing = 1/24;
+inputConf.doForcing = 'GWO';
+inputConf.forceMJD = inputConf.startDateMJD:inputConf.dateforcing:inputConf.endDateMJD;
+if strcmpi(inputConf.doForcing, 'GWO')
+    inputConf.forceMJD = inputConf.startDateMJD:inputConf.dateforcing:inputConf.endDateMJD;
+elseif strcmpi(inputConf.doForcing, 'NCEP')
+    inputConf.forceMJD = [inputConf.startDateMJD, inputConf.endDateMJD];
+end
+
+develop_mode = 1;
+if activate_Meteo==1
+ %   if strcmpi(inputConf.doForcing, 'NCEP')
+
+%    elseif strcmpi(inputConf.doForcing, 'GWO')
         %日本の気象庁のデータ
         % Get the surface heating data.
         % Use the GWO data to get the following parameters:
@@ -998,19 +998,21 @@ if activate_Meteo==1
         %  COARE_VERSION                   = 'BULKALGORITHM',
         %  The air pressure is not turnning on.
         %  This is used for non calculated heat flux and hurrican model.
-        
         if develop_mode == 3
             fprintf('Loading Model objet file...\n')
             load('varb/Mobj_03.mat');
             % load('forcing_gwo.mat');
             load('forcing_gwo_interp.mat');
-            fprintf('Done!\n');
+
         else
             %inputConf.forceMJD = [inputConf.startDateMJD, inputConf.endDateMJD+1 ]
             Mobj.gwo.time = inputConf.forceMJD';
+            %Mobj.gwo.time = Mobj.gwo.time(1:length(inputConf.forceMJD')-2);
+    
             if develop_mode == 1
+                clear forcing_gwo_interp
+                fprintf('Start GWO data reading,develop_mode = 1');
                 forcing_gwo = get_GWO_forcing(Mobj.gwo.time);
-                %forcing_gwo.time.time =forcing_gwo.time
                 UTMzone = regexpi(inputConf.utmZone,'\ ','split');
                 for s = 1:length(forcing_gwo.lon)
                     [forcing_gwo.x(s),forcing_gwo.y(s),~,~] = wgs2utm(...
@@ -1026,20 +1028,26 @@ if activate_Meteo==1
                 load('forcing_gwo.mat');
                 fprintf('Done!\n');
             end
+            %size(forcing_gwo.air.data)
             % air
+
             interpfields = {'time', 'lon', 'lat', 'x', 'y',...
-                'air'};
+                'air','cld','dsw','dlwrf','hum','prs','rin'};
             % vars = interpfields; data = forcing;
-            forcing_gwo_inter_air = grid2fvcom(Mobj, interpfields, forcing_gwo,...
+            forcing_gwo_inter_node = grid2fvcom(Mobj,inputConf.doForcing,interpfields, forcing_gwo,...
                 'add_elems', false);
-            save('forcing_gwo_inter_air.mat','forcing_gwo_inter_air','-v7.3','-nocompression');
-            clear forcing_gwo_inter_air;
-            
+            %dlwrf = readmatrix('C:/Users/ishid/Github/00_data/dlwrf_2020.csv');
+            %for i = 1:3210
+            %    forcing_gwo_inter_node.dlwrf.node(:,i) =  dlwrf(2:length(dlwrf),2)
+            %end
+            save('forcing_gwo_inter_node.mat','forcing_gwo_inter_node','-v7.3','-nocompression');
+            clear forcing_gwo_inter_node;
+            %{
             % cld
             interpfields = {'time', 'lon', 'lat', 'x', 'y',...
                 'cld'};
             % vars = interpfields; data = forcing;
-            forcing_gwo_inter_cld = grid2fvcom(Mobj, interpfields, forcing_gwo,...
+            forcing_gwo_inter_cld = grid2fvcom(Mobj,inputConf.doForcing,interpfields, forcing_gwo,...
                 'add_elems', false);
             save('forcing_gwo_inter_cld.mat','forcing_gwo_inter_cld','-v7.3','-nocompression');
             clear forcing_gwo_inter_cld;
@@ -1048,16 +1056,25 @@ if activate_Meteo==1
             interpfields = {'time', 'lon', 'lat', 'x', 'y',...
                 'dsw'};
             % vars = interpfields; data = forcing;
-            forcing_gwo_inter_dsw = grid2fvcom(Mobj, interpfields, forcing_gwo,...
+            forcing_gwo_inter_dsw = grid2fvcom(Mobj,inputConf.doForcing,interpfields, forcing_gwo,...
                 'add_elems', false);
             save('forcing_gwo_inter_dsw.mat','forcing_gwo_inter_dsw','-v7.3','-nocompression');
             clear forcing_gwo_inter_dsw;
-            
+
+                % dlwrf
+            interpfields = {'time', 'lon', 'lat', 'x', 'y',...
+                'dlwrf'};
+            % vars = interpfields; data = forcing;
+            forcing_gwo_inter_dlwrf = grid2fvcom(Mobj,inputConf.doForcing,interpfields, forcing_gwo,...
+                'add_elems', false);
+            save('forcing_gwo_inter_dlwrf.mat','forcing_gwo_inter_dlwrf','-v7.3','-nocompression');
+            clear forcing_gwo_inter_dlwrf;
+
             % hum
             interpfields = {'time', 'lon', 'lat', 'x', 'y',...
                 'hum'};
             % vars = interpfields; data = forcing;
-            forcing_gwo_inter_hum = grid2fvcom(Mobj, interpfields, forcing_gwo,...
+            forcing_gwo_inter_hum = grid2fvcom(Mobj,inputConf.doForcing,interpfields, forcing_gwo,...
                 'add_elems', false);
             save('forcing_gwo_inter_hum.mat','forcing_gwo_inter_hum','-v7.3','-nocompression');
             clear forcing_gwo_inter_hum;
@@ -1066,50 +1083,76 @@ if activate_Meteo==1
             interpfields = {'time', 'lon', 'lat', 'x', 'y',...
                 'prs'};
             % vars = interpfields; data = forcing;
-            forcing_gwo_inter_prs = grid2fvcom(Mobj, interpfields, forcing_gwo,...
+            forcing_gwo_inter_prs = grid2fvcom(Mobj,inputConf.doForcing,interpfields, forcing_gwo,...
                 'add_elems', false);
             save('forcing_gwo_inter_prs.mat','forcing_gwo_inter_prs','-v7.3','-nocompression');
             clear forcing_gwo_inter_prs;
-            
+            %}
             % wnd
             interpfields = {'time', 'lon', 'lat', 'x', 'y',...
                 'uwnd','vwnd'};
             % vars = interpfields; data = forcing_gwo;
-            forcing_gwo_inter_wnd = grid2fvcom(Mobj, interpfields, forcing_gwo,...
+            forcing_gwo_inter_wnd = grid2fvcom(Mobj,inputConf.doForcing,interpfields, forcing_gwo,...
                 'add_elems', true);
             save('forcing_gwo_inter_wnd.mat','forcing_gwo_inter_wnd','-v7.3','-nocompression');
             clear forcing_gwo_inter_wnd;
-            
+            %{
             % rin
             interpfields = {'time', 'lon', 'lat', 'x', 'y',...
                 'rin'};
             % vars = interpfields; data = forcing;
-            forcing_gwo_inter_rin = grid2fvcom(Mobj, interpfields, forcing_gwo,...
+            forcing_gwo_inter_rin = grid2fvcom(Mobj,inputConf.doForcing,interpfields, forcing_gwo,...
                 'add_elems', false);
             save('forcing_gwo_inter_rin.mat','forcing_gwo_inter_rin','-v7.3','-nocompression');
             clear forcing_gwo_inter_rin;
+            
+            % evpr
+            interpfields = {'time', 'lon', 'lat', 'x', 'y',...
+                'evpr'};
+            % vars = interpfields; data = forcing;
+            forcing_gwo_inter_rin = grid2fvcom(Mobj,inputConf.doForcing,interpfields, forcing_gwo,...
+                'add_elems', false);
+            save('forcing_gwo_inter_evpr.mat','forcing_gwo_inter_evpr','-v7.3','-nocompression');
+            clear forcing_gwo_inter_evpr;
+            %}
+
+        end
+    
+ %   end
             clear forcing_gwo;
             clear interpfields;
-            
+            %{
             load('forcing_gwo_inter_air.mat'); forcing_gwo_interp.air = forcing_gwo_inter_air.air; clear forcing_gwo_inter_air;
             load('forcing_gwo_inter_cld.mat'); forcing_gwo_interp.cld = forcing_gwo_inter_cld.cld; clear forcing_gwo_inter_cld;
             load('forcing_gwo_inter_dsw.mat'); forcing_gwo_interp.dsw = forcing_gwo_inter_dsw.dsw; clear forcing_gwo_inter_dsw;
             load('forcing_gwo_inter_hum.mat'); forcing_gwo_interp.hum = forcing_gwo_inter_hum.hum; clear forcing_gwo_inter_hum;
             load('forcing_gwo_inter_prs.mat'); forcing_gwo_interp.prs = forcing_gwo_inter_prs.prs; clear forcing_gwo_inter_prs;
             load('forcing_gwo_inter_rin.mat'); forcing_gwo_interp.rin = forcing_gwo_inter_rin.rin; clear forcing_gwo_inter_rin;
+            %load('forcing_gwo_inter_evpr.mat'); forcing_gwo_interp.evpr = forcing_gwo_inter_evpr.evpr; clear forcing_gwo_inter_evpr;
+            load('forcing_gwo_inter_dlwrf.mat'); forcing_gwo_interp.dlwrf = forcing_gwo_inter_dlwrf.dlwrf; clear forcing_gwo_inter_dlwrf;
+            %}
             load('forcing_gwo_inter_wnd.mat'); 
-            forcing_gwo_interp.uwnd = forcing_gwo_inter_wnd.uwnd; 
-            forcing_gwo_interp.vwnd = forcing_gwo_inter_wnd.vwnd; 
+            load('forcing_gwo_inter_node.mat'); 
+            forcing_gwo_interp.uwnd =forcing_gwo_inter_wnd.uwnd; 
+            forcing_gwo_interp.vwnd =forcing_gwo_inter_wnd.vwnd; 
             forcing_gwo_interp.time = forcing_gwo_inter_wnd.time;
             forcing_gwo_interp.lon  = forcing_gwo_inter_wnd.lon; 
             forcing_gwo_interp.lat  = forcing_gwo_inter_wnd.lat; 
             forcing_gwo_interp.x    = forcing_gwo_inter_wnd.x; 
-            forcing_gwo_interp.y    = forcing_gwo_inter_wnd.y; 
+            forcing_gwo_interp.y    = forcing_gwo_inter_wnd.y;  
+            forcing_gwo_interp.air =forcing_gwo_inter_node.air;
+            forcing_gwo_interp.cld =forcing_gwo_inter_node.cld;
+            forcing_gwo_interp.dsw =forcing_gwo_inter_node.dsw;
+            forcing_gwo_interp.dlwrf =forcing_gwo_inter_node.dlwrf;
+            forcing_gwo_interp.hum =forcing_gwo_inter_node.hum;
+            forcing_gwo_interp.prs =forcing_gwo_inter_node.prs;
+            forcing_gwo_interp.rin =forcing_gwo_inter_node.rin;
+
             clear forcing_gwo_inter_wnd;
             
             save('forcing_gwo_interp.mat','forcing_gwo_interp','-v7.3','-nocompression');
-        end
-
+        %end
+        
         write_FVCOM_gwo_forcing(Mobj, ...
             forcing_gwo_interp, ...
             fullfile(inputConf.outbase,[inputConf.casename]),...
@@ -1117,7 +1160,8 @@ if activate_Meteo==1
             inputConf.FVCOM_version, ...
             'floattime', true,...
             'julian', true);
-        fprintf('Writing meteorological forcing file...done!\n');
+
+
         clear forcing_gwo forcing_gwo_interp;
         
     % Have a look at some data.
@@ -1139,10 +1183,11 @@ if activate_Meteo==1
         pause(0.01);
     end
     clear ans ax figure1 i s value varb
-%}    
-end
+%}
 
-end
+end   %meteo end
+
+
 
 
 fprintf('All done!\n')
