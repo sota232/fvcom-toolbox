@@ -5,7 +5,7 @@
 %
 % Which system am I using?
 % CHANGE THESE TO YOUR OWN DIRECTOR
-    basedir = 'C:/Users/ishid/';
+    basedir = '/Users/ishid/';
       % Insert your mapped drive to \\stoe\login\your_name here
     addpath([basedir,'']);
     addpath([basedir,'Github/fvcom-toolbox-main/fvcom_prepro/']);
